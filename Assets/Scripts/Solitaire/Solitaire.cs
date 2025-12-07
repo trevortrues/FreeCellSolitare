@@ -362,10 +362,11 @@ public class Solitaire : MonoBehaviour
             int tableauIndex = System.Array.IndexOf(tableauPositions, clickedTag);
             tableaus[tableauIndex].Add(cardObject.name);
             Vector3 targetPos;
-            if (tableaus[tableauIndex].Count == 1)
-                targetPos = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
+            int cardCount = tableaus[tableauIndex].Count;
+            if (cardCount == 1)
+                targetPos = clickedTag.transform.position + new Vector3(0f, 0f, -.03f);
             else
-                targetPos = targetObject.transform.position + cardOffset;
+                targetPos = clickedTag.transform.position + new Vector3(0f, 0f, -.1f) + (cardOffset * (cardCount - 1));
 
             cardObject.transform.parent = clickedTag.transform;
             AnimateOrMove(cardObject, targetPos);
@@ -385,7 +386,8 @@ public class Solitaire : MonoBehaviour
         {
             int fIndex = System.Array.IndexOf(foundationPositions, clickedTag);
             foundations[fIndex].Add(cardObject.name);
-            Vector3 targetPos = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
+            int cardCount = foundations[fIndex].Count;
+            Vector3 targetPos = clickedTag.transform.position + new Vector3(0f, 0f, -.03f * cardCount);
             cardObject.transform.parent = clickedTag.transform;
             AnimateOrMove(cardObject, targetPos);
         }
