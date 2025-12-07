@@ -256,7 +256,7 @@ public class Solitaire : MonoBehaviour
         return false;
     }
 
-    public void MoveCardsAbove(GameObject origParent, int originalTabIndex, int destTabIndex, int cardsToMoveCount, GameObject clickedTag, GameObject cardObject)
+    public void MoveCardsAbove(GameObject origParent, int originalTabIndex, int destTabIndex, int cardsToMoveCount, GameObject clickedTag, Vector3 firstCardTargetPos)
     {
         if (originalTabIndex == -1 || cardsToMoveCount <= 1) return;
         List<string> origTab = tableaus[originalTabIndex];
@@ -279,7 +279,7 @@ public class Solitaire : MonoBehaviour
             if(movingCardObj!=null)
             {
                 movingCardObj.transform.parent = clickedTag.transform;
-                Vector3 targetPos = cardObject.transform.position + (cardOffset * (i + 1));
+                Vector3 targetPos = firstCardTargetPos + (cardOffset * (i + 1));
                 AnimateOrMove(movingCardObj, targetPos);
             }
         }
@@ -369,7 +369,7 @@ public class Solitaire : MonoBehaviour
 
             cardObject.transform.parent = clickedTag.transform;
             AnimateOrMove(cardObject, targetPos);
-            MoveCardsAbove(originalParent, originalTabIndex, tableauIndex, cardsToMoveCount, clickedTag, cardObject);
+            MoveCardsAbove(originalParent, originalTabIndex, tableauIndex, cardsToMoveCount, clickedTag, targetPos);
         }
 
         if (clickedTag.transform.CompareTag("FreeCell"))
