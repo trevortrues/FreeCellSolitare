@@ -1,0 +1,67 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 3
+  tags:
+  - Collectible
+  - Enemy_Barrier
+  - Enemy
+  - Collectable
+  - Deck
+  - Waste
+  - Foundation
+  - Tableau
+  - Card
+  - FreeCell
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - Player
+  - Ground
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Background
+    uniqueID: 3002539553
+    locked: 0
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: Player
+    uniqueID: 3583255851
+    locked: 0
+  - name: Foreground
+    uniqueID: 506788641
+    locked: 0
+  - name: UI_Overlay
+    uniqueID: 2140612883
+    locked: 0
+  m_RenderingLayers:
+  - Default
