@@ -17,6 +17,12 @@ public class Solitaire : MonoBehaviour
     public List<string>[] foundations;
     public List<string>[] tableaus;
     public List<string>[] freeCells;
+
+    [Header("Game State")]
+    public int moveCount = 0;
+    private MoveHistory moveHistory;
+    private CardAnimator cardAnimator;
+    private UIManager uiManager;
     public List<string> foundation0 = new List<string>();
     public List<string> foundation1 = new List<string>();
     public List<string> foundation2 = new List<string>();
@@ -41,7 +47,16 @@ public class Solitaire : MonoBehaviour
         tableaus = new List<string>[] { tableau0, tableau1, tableau2, tableau3, tableau4, tableau5, tableau6, tableau7 };
         foundations = new List<string>[] { foundation0, foundation1, foundation2, foundation3 };
         freeCells = new List<string>[] { freeCell0, freeCell1, freeCell2, freeCell3 };
-        PlayGame();
+
+        moveHistory = FindAnyObjectByType<MoveHistory>();
+        cardAnimator = FindAnyObjectByType<CardAnimator>();
+        uiManager = FindAnyObjectByType<UIManager>();
+
+        // Don't auto-start if GameManager exists (menu will control start)
+        if (GameManager.Instance == null)
+        {
+            PlayGame();
+        }
     }
 
     void Update()
@@ -264,18 +279,38 @@ public class Solitaire : MonoBehaviour
             if(movingCardObj!=null)
             {
                 movingCardObj.transform.parent = clickedTag.transform;
-                movingCardObj.transform.position = cardObject.transform.position + (cardOffset * (i + 1));
+                Vector3 targetPos = cardObject.transform.position + (cardOffset * (i + 1));
+                AnimateOrMove(movingCardObj, targetPos);
             }
         }
     }
     
-    public void PlaceCard(GameObject cardObject, GameObject targetObject)
+    public void PlaceCard(GameObject cardObject, GameObject targetObject, bool isUndoRedo = false)
     {
         if (cardObject == targetObject || cardObject == null || targetObject == null) return;
         int originalTabIndex = -1;
+        int originalSourceIndex = -1;
+        string originalSourceType = "";
         int cardsToMoveCount = 1;
+        List<string> additionalCards = new List<string>();
         ResolveTarget(targetObject, out GameObject clickedTag, out int foundationIndex, out int tabIndex, out int freeCellIndex);
         GameObject originalParent = cardObject.transform.parent.gameObject;
+
+        if (cardObject.transform.parent.CompareTag("Tableau"))
+        {
+            originalSourceType = "Tableau";
+            originalSourceIndex = System.Array.IndexOf(tableauPositions, cardObject.transform.parent.gameObject);
+        }
+        else if (cardObject.transform.parent.CompareTag("FreeCell"))
+        {
+            originalSourceType = "FreeCell";
+            originalSourceIndex = System.Array.IndexOf(freeCellPositions, cardObject.transform.parent.gameObject);
+        }
+        else if (cardObject.transform.parent.CompareTag("Foundation"))
+        {
+            originalSourceType = "Foundation";
+            originalSourceIndex = System.Array.IndexOf(foundationPositions, cardObject.transform.parent.gameObject);
+        }
 
         if (cardObject.transform.parent.CompareTag("Tableau"))
         {
@@ -284,7 +319,14 @@ public class Solitaire : MonoBehaviour
                 if (tableau.Contains(cardObject.name))
                 {
                     originalTabIndex = System.Array.IndexOf(tableaus, tableau);
-                    cardsToMoveCount = tableau.Count - tableau.IndexOf(cardObject.name);
+                    int cardIndex = tableau.IndexOf(cardObject.name);
+                    cardsToMoveCount = tableau.Count - cardIndex;
+
+                    for (int i = cardIndex + 1; i < tableau.Count; i++)
+                    {
+                        additionalCards.Add(tableau[i]);
+                    }
+
                     tableau.Remove(cardObject.name);
                     break;
                 }
@@ -319,11 +361,14 @@ public class Solitaire : MonoBehaviour
         {
             int tableauIndex = System.Array.IndexOf(tableauPositions, clickedTag);
             tableaus[tableauIndex].Add(cardObject.name);
+            Vector3 targetPos;
             if (tableaus[tableauIndex].Count == 1)
-                cardObject.transform.position = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
+                targetPos = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
             else
-                cardObject.transform.position = targetObject.transform.position + cardOffset;
+                targetPos = targetObject.transform.position + cardOffset;
+
             cardObject.transform.parent = clickedTag.transform;
+            AnimateOrMove(cardObject, targetPos);
             MoveCardsAbove(originalParent, originalTabIndex, tableauIndex, cardsToMoveCount, clickedTag, cardObject);
         }
 
@@ -331,21 +376,67 @@ public class Solitaire : MonoBehaviour
         {
             int fcIndex = System.Array.IndexOf(freeCellPositions, clickedTag);
             freeCells[fcIndex].Add(cardObject.name);
-            cardObject.transform.position = clickedTag.transform.position + new Vector3(0f, 0f, -.03f);
+            Vector3 targetPos = clickedTag.transform.position + new Vector3(0f, 0f, -.03f);
             cardObject.transform.parent = clickedTag.transform;
+            AnimateOrMove(cardObject, targetPos);
         }
 
         if (clickedTag.transform.CompareTag("Foundation"))
         {
             int fIndex = System.Array.IndexOf(foundationPositions, clickedTag);
             foundations[fIndex].Add(cardObject.name);
-            cardObject.transform.position = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
+            Vector3 targetPos = targetObject.transform.position + new Vector3(0f, 0f, -.03f);
             cardObject.transform.parent = clickedTag.transform;
+            AnimateOrMove(cardObject, targetPos);
+        }
+
+        if (!isUndoRedo)
+        {
+            moveCount++;
+            if (uiManager != null)
+            {
+                uiManager.UpdateMoveCounter(moveCount);
+            }
+
+            if (moveHistory != null)
+            {
+                string destType = "";
+                int destIndex = -1;
+                if (clickedTag.CompareTag("Tableau"))
+                {
+                    destType = "Tableau";
+                    destIndex = tabIndex;
+                }
+                else if (clickedTag.CompareTag("FreeCell"))
+                {
+                    destType = "FreeCell";
+                    destIndex = freeCellIndex;
+                }
+                else if (clickedTag.CompareTag("Foundation"))
+                {
+                    destType = "Foundation";
+                    destIndex = foundationIndex;
+                }
+
+                MoveRecord record = new MoveRecord(
+                    cardObject.name,
+                    originalSourceType,
+                    originalSourceIndex,
+                    destType,
+                    destIndex,
+                    additionalCards
+                );
+                moveHistory.RecordMove(record);
+            }
         }
 
         if (CheckWinCondition())
         {
             Debug.Log("Congratulations! You won!");
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.OnGameWon();
+            }
         }
     }
 
@@ -451,5 +542,223 @@ public class Solitaire : MonoBehaviour
             tableauIndex = System.Array.IndexOf(tableauPositions, clickedTag);
         else if (clickedTag.transform.CompareTag("FreeCell"))
             freeCellIndex = System.Array.IndexOf(freeCellPositions, clickedTag);
+    }
+
+    public void ResetGame()
+    {
+        foreach (var tab in tableaus) tab.Clear();
+        foreach (var found in foundations) found.Clear();
+        foreach (var fc in freeCells) fc.Clear();
+
+        foreach (GameObject tabPos in tableauPositions)
+        {
+            foreach (Transform child in tabPos.transform)
+            {
+                if (child.CompareTag("Card"))
+                    Destroy(child.gameObject);
+            }
+        }
+        foreach (GameObject foundPos in foundationPositions)
+        {
+            foreach (Transform child in foundPos.transform)
+            {
+                if (child.CompareTag("Card"))
+                    Destroy(child.gameObject);
+            }
+        }
+        foreach (GameObject fcPos in freeCellPositions)
+        {
+            foreach (Transform child in fcPos.transform)
+            {
+                if (child.CompareTag("Card"))
+                    Destroy(child.gameObject);
+            }
+        }
+
+        moveCount = 0;
+        if (uiManager != null)
+        {
+            uiManager.UpdateMoveCounter(0);
+        }
+
+        if (moveHistory != null)
+        {
+            moveHistory.Clear();
+        }
+
+        PlayGame();
+    }
+
+    public void UndoLastMove()
+    {
+        if (moveHistory == null || !moveHistory.CanUndo()) return;
+        if (cardAnimator != null && cardAnimator.IsAnimating()) return;
+
+        MoveRecord? moveRecord = moveHistory.Undo();
+        if (!moveRecord.HasValue) return;
+
+        MoveRecord move = moveRecord.Value;
+
+        GameObject cardObject = FindCardObject(move.cardName);
+        if (cardObject == null) return;
+
+        GameObject sourcePosition = GetPositionObject(move.sourceType, move.sourceIndex);
+        if (sourcePosition == null) return;
+
+        List<GameObject> cardsToMove = new List<GameObject> { cardObject };
+        foreach (string additionalCard in move.additionalCards)
+        {
+            GameObject addCard = FindCardObject(additionalCard);
+            if (addCard != null) cardsToMove.Add(addCard);
+        }
+
+        RemoveCardFromLocation(move.cardName, move.destType, move.destIndex);
+        foreach (string addCard in move.additionalCards)
+        {
+            RemoveCardFromLocation(addCard, move.destType, move.destIndex);
+        }
+
+        AddCardToLocation(move.cardName, move.sourceType, move.sourceIndex);
+        foreach (string addCard in move.additionalCards)
+        {
+            AddCardToLocation(addCard, move.sourceType, move.sourceIndex);
+        }
+
+        UpdateCardPositions(cardsToMove, sourcePosition, move.sourceType, move.sourceIndex);
+
+        moveCount--;
+        if (uiManager != null)
+        {
+            uiManager.UpdateMoveCounter(moveCount);
+        }
+    }
+
+    public void RedoMove()
+    {
+        if (moveHistory == null || !moveHistory.CanRedo()) return;
+        if (cardAnimator != null && cardAnimator.IsAnimating()) return;
+
+        MoveRecord? moveRecord = moveHistory.Redo();
+        if (!moveRecord.HasValue) return;
+
+        MoveRecord move = moveRecord.Value;
+
+        GameObject cardObject = FindCardObject(move.cardName);
+        GameObject destPosition = GetPositionObject(move.destType, move.destIndex);
+
+        if (cardObject == null || destPosition == null) return;
+
+        PlaceCard(cardObject, destPosition, true);
+
+        moveCount++;
+        if (uiManager != null)
+        {
+            uiManager.UpdateMoveCounter(moveCount);
+        }
+    }
+
+    private GameObject FindCardObject(string cardName)
+    {
+        foreach (GameObject pos in tableauPositions)
+        {
+            foreach (Transform child in pos.transform)
+            {
+                if (child.name == cardName) return child.gameObject;
+            }
+        }
+        foreach (GameObject pos in foundationPositions)
+        {
+            foreach (Transform child in pos.transform)
+            {
+                if (child.name == cardName) return child.gameObject;
+            }
+        }
+        foreach (GameObject pos in freeCellPositions)
+        {
+            foreach (Transform child in pos.transform)
+            {
+                if (child.name == cardName) return child.gameObject;
+            }
+        }
+        return null;
+    }
+
+    private GameObject GetPositionObject(string locationType, int index)
+    {
+        switch (locationType)
+        {
+            case "Tableau": return index >= 0 && index < tableauPositions.Length ? tableauPositions[index] : null;
+            case "Foundation": return index >= 0 && index < foundationPositions.Length ? foundationPositions[index] : null;
+            case "FreeCell": return index >= 0 && index < freeCellPositions.Length ? freeCellPositions[index] : null;
+            default: return null;
+        }
+    }
+
+    private void RemoveCardFromLocation(string cardName, string locationType, int index)
+    {
+        List<string> list = GetListForLocation(locationType, index);
+        if (list != null && list.Contains(cardName))
+        {
+            list.Remove(cardName);
+        }
+    }
+
+    private void AddCardToLocation(string cardName, string locationType, int index)
+    {
+        List<string> list = GetListForLocation(locationType, index);
+        if (list != null)
+        {
+            list.Add(cardName);
+        }
+    }
+
+    private List<string> GetListForLocation(string locationType, int index)
+    {
+        switch (locationType)
+        {
+            case "Tableau": return index >= 0 && index < tableaus.Length ? tableaus[index] : null;
+            case "Foundation": return index >= 0 && index < foundations.Length ? foundations[index] : null;
+            case "FreeCell": return index >= 0 && index < freeCells.Length ? freeCells[index] : null;
+            default: return null;
+        }
+    }
+
+    private void UpdateCardPositions(List<GameObject> cards, GameObject parentPosition, string locationType, int index)
+    {
+        for (int i = 0; i < cards.Count; i++)
+        {
+            GameObject card = cards[i];
+            card.transform.parent = parentPosition.transform;
+
+            Vector3 basePosition = parentPosition.transform.position + new Vector3(0f, 0f, -.03f);
+
+            if (locationType == "Tableau")
+            {
+                List<string> tableau = tableaus[index];
+                int cardIndex = tableau.IndexOf(card.name);
+                if (cardIndex > 0)
+                {
+                    basePosition = parentPosition.transform.position + new Vector3(0f, 0f, -.1f) + (cardOffset * cardIndex);
+                }
+                else if (cardIndex == 0)
+                {
+                    basePosition = parentPosition.transform.position + new Vector3(0f, 0f, -.1f);
+                }
+            }
+
+            AnimateOrMove(card, basePosition);
+        }
+    }
+
+    private void AnimateOrMove(GameObject card, Vector3 targetPosition)
+    {
+        if (cardAnimator != null)
+        {
+            cardAnimator.AnimateCard(card, targetPosition);
+        }
+        else
+        {
+            card.transform.position = targetPosition;
+        }
     }
 }

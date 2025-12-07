@@ -18,6 +18,12 @@ public class SolitaireInput : MonoBehaviour
     
     void OnBurst(InputValue value)
     {
+        if (CardAnimator.Instance != null && CardAnimator.Instance.IsAnimating())
+            return;
+
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying())
+            return;
+
         Debug.Log("Burst");
         Vector2 mousePosition = Mouse.current.position.ReadValue();
         Vector3 worldPosition = Camera.main.ScreenToWorldPoint(new Vector3(mousePosition.x, mousePosition.y, 0f));
